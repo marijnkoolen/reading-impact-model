@@ -1,8 +1,13 @@
 #!/usr/local/bin/python
+from typing import List, Union
 import re
+import json
+import xmltodict
+from xml.parsers.expat import ExpatError
 from impact_model import ImpactModel
 
-def is_wildcard_term(term):
+
+def is_wildcard_term(term: str) -> bool:
     """
     Determine if term is a wildcard term, e.g. starts or ends with an asterix ("*").
     Wildcards on both sides are not allowed, since this is reserved for special terms.
@@ -15,8 +20,10 @@ def is_wildcard_term(term):
     else:
         return False
 
-def wildcard_term_match(sentence_term, match_term):
+
+def wildcard_term_match(sentence_term: str, match_term: str) -> bool:
     """this function interprets wildcards in match terms and uses regex to match term against a sentence term"""
+    match_string = match_term
     if match_term[0] == "*":
         match_string = match_term[1:] + r"$"
     elif match_term[-1] == "*":
@@ -26,41 +33,46 @@ def wildcard_term_match(sentence_term, match_term):
     else:
         return False
 
-def term_match(sentence_term, match_term):
+
+def term_match(sentence_term: str, match_term: str) -> bool:
     """this function matches a term against a sentence term, uses wildcards if given, otherwise exact match"""
     if is_wildcard_term(match_term):
         try:
             return wildcard_term_match(sentence_term, match_term)
-        except:
-            print(lemma, match_term)
+        except IndexError:
+            print('Invalid match_term:', match_term)
             raise
     if sentence_term == match_term:
         return True
     else:
         return False
 
-def lemma_term_match(lemma, term):
+
+def lemma_term_match(lemma: str, term: str) -> bool:
     if is_wildcard_term(term):
         try:
             return wildcard_term_match(lemma, term)
-        except:
-            print(lemma, term)
+        except IndexError:
+            print('Invalid match_term:', term)
             raise
     if lemma == term:
         return True
     else:
         return False
 
-def remove_trailing_punctuation(string):
+
+def remove_trailing_punctuation(string: str) -> str:
     """removes leading and trailing punctuation from a string. Needed for Alpino word nodes"""
     return re.sub(r"^\W*\b(.*)\b\W*$", r"\1", string)
 
-def clean_word_node(node):
+
+def clean_word_node(node: dict) -> None:
     """clean punctuation from Alpino word nodes (lemma and surface word)"""
     node["@word"] = remove_trailing_punctuation(node["@word"])
     node["@lemma"] = remove_trailing_punctuation(node["@lemma"])
 
-def get_word_nodes(node):
+
+def get_word_nodes(node: dict) -> List[dict]:
     """parse the top node of an Alpino parse and return all the leave nodes in sentence order"""
     if isinstance(node, list):
         return [descendent for child_node in node for descendent in get_word_nodes(child_node)]
@@ -74,6 +86,7 @@ def get_word_nodes(node):
     else:
         return []
 
+
 class AlpinoError(Exception):
 
     def __init__(self, message):
@@ -82,24 +95,44 @@ class AlpinoError(Exception):
     def __str__(self):
         return self.message
 
+
+def is_alpino_xml_string(string: str) -> bool:
+    if not isinstance(string, str):
+        return False
+    try:
+        validate_alpino_ds(string)
+        return True
+    except ExpatError:
+        return False
+
+
+def validate_alpino_ds(alpino_ds: Union[str, dict]):
+    """check that the given alpino parse is a valid alpino parse."""
+    if isinstance(alpino_ds, str):
+        """Try and parse variable as XML string"""
+        try:
+            xml_dict = xmltodict.parse(alpino_ds)
+            alpino_ds = xml_dict['alpino_ds']
+        except KeyError:
+            raise AlpinoError('Invalid Alpino XML string, root element must be "alpino_ds"')
+    if not isinstance(alpino_ds, dict):
+        raise AlpinoError("alpino_ds must be an Alpino XML string or a JSON representation of Alpino XML output")
+    required_fields = ["@version", "parser", "node", "sentence"]
+    for required_field in required_fields:
+        if required_field not in alpino_ds.keys():
+            print(json.dumps(alpino_ds, indent=2))
+            raise AlpinoError("alpino_ds is not a valid JSON representation of Alpino XML output")
+
+
 class AlpinoSentence(object):
 
     def __init__(self, alpino_ds):
         # TO DO: accept and parse Alpino XML doc and string as input
-        self.validate_alpino_ds(alpino_ds)
+        validate_alpino_ds(alpino_ds)
         self.word_nodes = get_word_nodes(alpino_ds["node"])
         self.sentence_string = alpino_ds["sentence"]["#text"]
         self.alpino_ds = alpino_ds
 
-    def validate_alpino_ds(self, alpino_ds):
-        """check that the given alpino parse is a valid alpino parse."""
-        if not isinstance(alpino_ds, object):
-            raise AlpinoError("alpino_ds must be a JSON representation of Alpino XML output")
-        required_fields = ["@version", "parser", "node", "sentence"]
-        for required_field in required_fields:
-            if required_field not in alpino_ds.keys():
-                print(json.dumps(alpino_ds, indent=2))
-                raise AlpinoError("alpino_ds is not a valid JSON representation of Alpino XML output")
 
 class AlpinoMatcher(object):
 
@@ -116,10 +149,11 @@ class AlpinoMatcher(object):
     def set_alpino_sentence(self, alpino_sentence):
         if isinstance(alpino_sentence, AlpinoSentence):
             self.alpino_sentence = alpino_sentence
-        elif isinstance(alpino_sentence, object):
+        elif isinstance(alpino_sentence, dict):
             self.alpino_sentence = AlpinoSentence(alpino_sentence)
         else:
-            raise AlpinoError("alpino_sentence must be an AlpinoSentence object or a JSON representation of Alpino XML output")
+            raise AlpinoError(
+                "alpino_sentence must be an AlpinoSentence object or a JSON representation of Alpino XML output")
 
     def term_sentence_match(self, term, word_boundaries=True):
         """
@@ -206,7 +240,8 @@ class AlpinoMatcher(object):
             print("match_phrase:", impact_rule.impact_term.string)
             print("impact_term:", impact_rule.impact_term)
             print("sentence:", self.alpino_sentence.sentence_string)
-        for match in self.get_sentence_string_matching_term(impact_rule.impact_term.string, ignorecase=impact_rule.ignorecase):
+        for match in self.get_sentence_string_matching_term(impact_rule.impact_term.string,
+                                                            ignorecase=impact_rule.ignorecase):
             match = {
                 "match_term_offset": match.start(),
                 "match_term": match.group(0),
@@ -227,7 +262,8 @@ class AlpinoMatcher(object):
         if self.debug:
             print("match_term:", match_term, "match_pos:", match_pos)
             print("sentence:", self.alpino_sentence.sentence_string)
-        for impact_index, impact_node in self.get_sentence_lemmas_matching_term(match_term, match_pos, ignorecase=impact_rule.ignorecase):
+        for impact_index, impact_node in self.get_sentence_lemmas_matching_term(match_term, match_pos,
+                                                                                ignorecase=impact_rule.ignorecase):
             match = {
                 "match_term": impact_node["@word"],
                 "match_lemma": impact_node["@lemma"],
@@ -282,7 +318,8 @@ class AlpinoMatcher(object):
             return False
         for aspect_term in aspect_info["aspect_term"]:
             aspect_matches = []
-            for aspect_index, aspect_node in self.get_sentence_words_matching_term(aspect_term, ignorecase=impact_rule.ignorecase):
+            for aspect_index, aspect_node in self.get_sentence_words_matching_term(aspect_term,
+                                                                                   ignorecase=impact_rule.ignorecase):
                 aspect_match = {
                     "aspect_term_index": aspect_index,
                     "match_term": aspect_node["@word"],
@@ -294,7 +331,8 @@ class AlpinoMatcher(object):
             if len(aspect_matches) > 0:
                 impact_match["aspect_match"] = aspect_matches
                 return True
-            for aspect_index, aspect_node in self.get_sentence_lemmas_matching_term(aspect_term, None, ignorecase=impact_rule.ignorecase):
+            for aspect_index, aspect_node in self.get_sentence_lemmas_matching_term(aspect_term, None,
+                                                                                    ignorecase=impact_rule.ignorecase):
                 aspect_match = {
                     "context_term_index": aspect_index,
                     "match_term": aspect_node["@word"],
@@ -314,7 +352,8 @@ class AlpinoMatcher(object):
         if impact_rule.condition["location"] == "sentence_start":
             if self.debug:
                 print("looking for term", context_term, " with condition", impact_rule.condition)
-        for match in self.get_sentence_string_matching_term(context_term, impact_rule.condition["location"], ignorecase=impact_rule.ignorecase):
+        for match in self.get_sentence_string_matching_term(context_term, impact_rule.condition["location"],
+                                                            ignorecase=impact_rule.ignorecase):
             context_match = {
                 "condition_match_offset": match.start(),
                 "condition_match_string": match.group(0),
@@ -329,4 +368,3 @@ class AlpinoMatcher(object):
             return True
         else:
             return False
-
