@@ -94,7 +94,7 @@ class Matcher:
         for rule in self.impact_model.impact_rules:
             if rule.impact_term.type == 'term':
                 self.impact_rule_term_index[rule.impact_term.string] += [rule]
-            elif rule.impact_term.type == 'phrase':
+            elif rule.impact_term.type == 'phrase' or rule.impact_term.type == 'regex':
                 try:
                     for phrase_part in rule.impact_term.string.strip().split(' '):
                         if phrase_part[0] == '(' and phrase_part[-1] == ')':
@@ -133,12 +133,18 @@ class Matcher:
         self.sentence_string = sentence.sentence_string
         for word_node in sentence.word_nodes:
             token = {
-                'word': word_node.text,
-                'lemma': word_node.lemma_,
-                'pos': word_node.pos_
+                'word': word_node['@word'],
+                'lemma': word_node['@lemma'],
+                'pos': word_node['@pos']
             }
             self.sentence_tokens.append(token)
-            self.add_candidate_rules(word_node.text, word_node.lemma_)
+            self.add_candidate_rules(token['word'], token['lemma'])
+
+    def set_dict_sentence(self, sentence: dict) -> None:
+        self.sentence_string = sentence['text']
+        for token in sentence['tokens']:
+            self.sentence_tokens.append(token)
+            self.add_candidate_rules(token['word'], token['lemma'])
 
     def set_string_sentence(self, sentence: str) -> None:
         self.sentence_string = sentence
@@ -150,10 +156,10 @@ class Matcher:
             }
             self.sentence_tokens.append(token)
             self.add_candidate_rules(word, word)
-        print('sentence_string:', self.sentence_string)
-        print('sentence_tokens:', self.sentence_tokens)
+        # print('sentence_string:', self.sentence_string)
+        # print('sentence_tokens:', self.sentence_tokens)
 
-    def set_sentence(self, sentence: Union[str, SpacySentence]) -> None:
+    def set_sentence(self, sentence: Union[str, SpacySentence, AlpinoSentence]) -> None:
         self.sentence_tokens = []
         # reset candidate rules dictionary
         self.candidate_rules = {}
@@ -161,6 +167,8 @@ class Matcher:
             self.set_spacy_sentence(sentence)
         elif isinstance(sentence, AlpinoSentence):
             self.set_alpino_sentence(sentence)
+        elif isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
+            self.set_dict_sentence(sentence)
         elif isinstance(sentence, str) and is_alpino_xml_string(sentence):
             alpino_sentence = AlpinoSentence(sentence)
             self.set_alpino_sentence(alpino_sentence)
@@ -237,9 +245,7 @@ class Matcher:
 
     def match_rules(self, sentence=None):
         """Match sentence against all impact rules of the impact model."""
-        print('setting sentence for multiple rule match')
         self.set_sentence(sentence)
-        #return [match for impact_rule in self.impact_model.impact_rules for match in self.match_rule(impact_rule)]
         return [match for impact_rule in self.candidate_rules for match in self.match_rule(impact_rule)]
 
     def match_rule(self, impact_rule: ImpactRule, sentence=None) -> List[ImpactMatch]:
@@ -249,6 +255,8 @@ class Matcher:
                 print('setting sentence for single rule match')
             self.set_sentence(sentence)
         if impact_rule.impact_term.type == "phrase":
+            return self.match_impact_phrase(impact_rule)
+        if impact_rule.impact_term.type == "regex":
             return self.match_impact_phrase(impact_rule)
         else:
             return self.match_impact_term(impact_rule)
@@ -336,7 +344,7 @@ class Matcher:
                                                  aspect_term, aspect_group)
                 condition_matches.append(condition_match)
             if len(condition_matches) > 0:
-                impact_match.aspect_match = condition_matches
+                impact_match.condition_matches = condition_matches
                 return True
             for match_index, aspect_match in self.get_sentence_lemmas_matching_term(aspect_term, None,
                                                                                     ignorecase=impact_rule.ignorecase):
@@ -344,7 +352,7 @@ class Matcher:
                                                  aspect_term, aspect_group)
                 condition_matches.append(condition_match)
             if len(condition_matches) > 0:
-                impact_match.condition_match = condition_matches
+                impact_match.condition_matches = condition_matches
                 return True
         return False
 
@@ -356,14 +364,14 @@ class Matcher:
             if self.debug:
                 print("looking for term", context_term, " with condition", impact_rule.condition)
         for context_match in self.get_sentence_string_matching_term(context_term, impact_rule.condition["location"],
-                                                            ignorecase=impact_rule.ignorecase):
+                                                                    ignorecase=impact_rule.ignorecase):
             condition_match = ConditionMatch(context_match.group(0), None, context_match.start(),
                                              context_term, impact_rule.condition['term_type'])
             if self.debug:
                 print("CONTEXT CONDITION MATCH")
             condition_matches.append(condition_match)
         if len(condition_matches) > 0:
-            impact_match["condition_match"] = condition_matches
+            impact_match.condition_matches = condition_matches
             return True
         else:
             return False

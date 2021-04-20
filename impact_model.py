@@ -36,10 +36,22 @@ class ImpactMatch(object):
         self.impact_term = impact_term
         self.impact_term_type = impact_term_type
         self.impact_type = impact_type
-        self.condition_match = None
+        self.condition_matches: List[ConditionMatch] = []
 
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
+
+    @property
+    def json(self):
+        return {
+            'match_word': self.match_word,
+            'match_lemma': self.match_lemma,
+            'match_index': self.match_index,
+            'impact_term': self.impact_term,
+            'impact_type': self.impact_type,
+            'impact_term_type': self.impact_term_type,
+            'condition_match': [match.json for match in self.condition_matches]
+        }
 
 
 class ConditionMatch:
@@ -53,6 +65,10 @@ class ConditionMatch:
 
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
+
+    @property
+    def json(self):
+        return self.__dict__
 
 
 class ImpactRule(object):
@@ -75,13 +91,14 @@ class ImpactModel(object):
 
     def __init__(self, impact_terms_json: List[Dict[str, str]], impact_rules_json: List[Dict[str, str]],
                  aspect_terms_json: List[Dict[str, str]]):
-        self.impact_terms = [make_impact_term(term_json) for term_json in impact_terms_json]
-        self.impact_rules = [make_impact_rule(rule_json) for rule_json in impact_rules_json]
-        self.make_rule_index()
-        self.index_aspect_terms(aspect_terms_json)
         self.impact_rule_index = defaultdict(list)
         self.aspect_group_index = defaultdict(dict)
         self.aspect_term_index = defaultdict(dict)
+        self.impact_terms = [make_impact_term(term_json) for term_json in impact_terms_json]
+        self.impact_rules = [make_impact_rule(rule_json) for rule_json in impact_rules_json]
+        self.make_rule_index()
+        print('number of aspect terms:', len(aspect_terms_json))
+        self.index_aspect_terms(aspect_terms_json)
 
     def make_rule_index(self) -> None:
         """makes an indexes of all impact rules per impact term"""
@@ -166,6 +183,8 @@ def term_group(impact_term: Dict[str, str]) -> str:
 def term_type(impact_term: Dict[str, str]) -> str:
     if "phrase" in term_group(impact_term):
         return "phrase"
+    elif impact_term["Impact_term"].startswith('(') and impact_term["Impact_term"].endswith(')'):
+        return "regex"
     else:
         return "term"
 
@@ -233,28 +252,37 @@ def parse_condition(condition_string: str) -> Dict[str, str]:
 
 def expand_impact_code(code: str) -> Union[None, str]:
     """map impact code to readable impact type"""
-    if code == "R":
-        return "Reflection"
     if code == "A":
         return "Affect"
+    if code == "Att":
+        return "Attention"
+    if code == "H":
+        return "Humor"
     if code == "N":
         return "Narrative"
+    if code == "R":
+        return "Reflection"
     if code == "S":
         return "Style"
+    if code == "Sur":
+        return "Surprise"
+    if code == "Neg":
+        return "Negative"
+    if code == "Neu":
+        return "Neutral"
     else:
         return None
 
 
 def make_impact_rule(rule_json: dict) -> ImpactRule:
-    rule_fields = ["Impact_group", "Impact_term", "Code as", "Condition", "neg filter*", "remarks"]
     impact_term = ImpactTerm(term_string(rule_json), term_group(rule_json), term_pos(rule_json), term_type(rule_json))
     ignorecase = rule_json["Ignore case"] if "Ignore case" in rule_json else True
     return ImpactRule(
         impact_term,
-        rule_json["Code as"],
+        rule_json["Category"],
         rule_json["Condition"],
-        rule_json["neg filter*"],
-        rule_json["remarks"],
+        rule_json["Neg-filter"],
+        rule_json["Comments"],
         ignorecase
     )
 
@@ -263,14 +291,16 @@ def make_aspect_term(aspect_term_json: Dict[str, str]) -> AspectTerm:
     return AspectTerm(aspect_term_json["Aspect_term"], aspect_term_json["Aspect_category"])
 
 
-def model_loader(lang: str = 'nl') -> ImpactModel:
-    model_file = {
+def model_loader(lang: str = 'nl', model_file: str = None) -> ImpactModel:
+    lang_model_file = {
         'nl': 'impact_model-nl.pcl',
         'en': 'impact_model-en.pcl'
     }
-    if lang not in model_file:
+    if model_file:
+        return load_model(model_file)
+    if lang not in lang_model_file:
         raise ValueError(f'No impact model available for language {lang}')
-    return load_model(model_file[lang])
+    return load_model(lang_model_file[lang])
 
 
 def load_model(model_file: str) -> ImpactModel:
