@@ -5,7 +5,6 @@ description = ""
 authors = ["Marijn Koolen <marijn.koolen@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-license = "MIT"
 homepage = "https://github.com/marijnkoolen/reading-impact-model"
 repository = "https://github.com/marijnkoolen/reading-impact-model"
 classifiers = [
@@ -28,3 +27,19 @@ pytest = "^7.2.2"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.bumpver]
+current_version = "0.1.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version {old_version} -> {new_version}"
+commit = true
+tag = true
+push = true
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'version = "{version}"',
+]
+"reading_impact_model/__init__.py" = [
+    '__version__ = "{version}"'
+]
