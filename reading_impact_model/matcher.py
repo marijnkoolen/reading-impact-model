@@ -1,54 +1,34 @@
-from typing import List, Union
-from collections import defaultdict
 import re
+from collections import defaultdict
+from typing import List, Union
+
 from spacy.tokens import Span as SpacySentence
-from impact_model import ImpactModel, ImpactTerm, ImpactRule, ImpactMatch, ConditionMatch
-from alpino_matcher import AlpinoSentence, is_alpino_xml_string
+from stanza.models.common.doc import Sentence as StanzaSentence
+
+from reading_impact_model.impact_model import ImpactModel, ImpactTerm, ImpactRule, ImpactMatch, ConditionMatch
+from reading_impact_model.impact_model import load_model
+from reading_impact_model.impact_model import is_wildcard_term, wildcard_term_match
+from reading_impact_model.alpino_matcher import AlpinoSentence, is_alpino_xml_string
 
 
-def is_wildcard_term(term):
-    """
-    Determine if term is a wildcard term, e.g. starts or ends with an asterix ("*").
-    Wildcards on both sides are not allowed, since this is reserved for special terms.
-    E.g. the asterixes in "*zucht*" (*sigh* in Dutch) carry meaning on how to interpret "zucht".
-    """
-    if term[0] == "*" and term[-1] == "*":
-        return False
-    elif term[0] == "*" or term[-1] == "*":
-        return True
-    else:
-        return False
-
-
-def wildcard_term_match(sentence_term, match_term):
-    """this function interprets wildcards in match terms and uses regex to match term against a sentence term"""
-    match_string = match_term
-    if match_term[0] == "*":
-        match_string = match_term[1:] + r"$"
-    elif match_term[-1] == "*":
-        match_string = match_term[1:] + r"$"
-    if re.search(match_string, sentence_term):
-        return True
-    else:
-        return False
-
-
-def term_match(sentence_term, match_term):
-    """this function matches a term against a sentence term, uses wildcards if given, otherwise exact match"""
-    if is_wildcard_term(match_term):
+def term_match(sentence_term, model_term):
+    """this function matches a model term against a sentence term,
+    uses wildcards if given, otherwise exact match"""
+    if is_wildcard_term(model_term):
         try:
-            return wildcard_term_match(sentence_term, match_term)
+            return wildcard_term_match(sentence_term, model_term)
         except IndexError:
-            print('Invalid match_term:', match_term)
+            print('Invalid model_term:', model_term)
             raise
-    if sentence_term == match_term:
+    if sentence_term == model_term:
         return True
     else:
         return False
 
 
 def lemma_term_match(lemma, term):
-    """this function matches a term against a lemma from a sentence, uses wildcards if given, otherwise exact match"""
+    """this function matches a model term against a lemma from a sentence,
+    uses wildcards if given, otherwise exact match"""
     if is_wildcard_term(term):
         try:
             return wildcard_term_match(lemma, term)
@@ -77,13 +57,28 @@ def check_alpino_sentence(alpino_sentence: Union[str, AlpinoSentence]) -> bool:
         return False
 
 
-class Matcher:
+class ImpactMatcher:
 
-    def __init__(self, impact_model: ImpactModel, debug: bool = False):
-        if not impact_model or not isinstance(impact_model, ImpactModel):
+    def __init__(self, lang: str = 'en', impact_model: ImpactModel = None, debug: bool = False):
+        """Create a reading impact matcher object for a given reading impact model or language.
+
+        If only a language identifier ('en' or 'nl') is passed, the default model for that
+        language will be used.
+
+        :param lang: the language for which a reading impact model should be used (default 'en', which is English).
+        :type lang: str
+        :param impact_model: a specific impact model, if you want to override the default model.
+        :type impact_model: ImpactModel
+        """
+        if lang is not None:
+            self.impact_model = load_model(lang=lang)
+            print('lang:', lang)
+            print('model:', self.impact_model)
+        elif isinstance(impact_model, ImpactModel):
+            self.impact_model = impact_model
+        else:
             raise TypeError("Matcher must be instantiated with an ImpactModel object")
         self.debug = debug
-        self.impact_model = impact_model
         self.sentence_string = ''
         self.sentence_tokens = []
         self.candidate_rules = {}
@@ -112,12 +107,12 @@ class Matcher:
     def add_candidate_rules(self, token, lemma):
         if token in self.impact_rule_term_index:
             for rule in self.impact_rule_term_index[token]:
-                self.candidate_rules[rule] = True
+                self.candidate_rules[rule] += 1
         if lemma != token and lemma in self.impact_rule_term_index:
             for rule in self.impact_rule_term_index[lemma]:
-                self.candidate_rules[rule] = True
+                self.candidate_rules[rule] += 1
 
-    def set_spacy_sentence(self, sentence: SpacySentence) -> None:
+    def _set_spacy_sentence(self, sentence: SpacySentence) -> None:
         self.sentence_string = sentence.text
         for spacy_token in sentence:
             token = {
@@ -129,7 +124,17 @@ class Matcher:
             if not spacy_token.is_stop:
                 self.add_candidate_rules(spacy_token.text, spacy_token.lemma_)
 
-    def set_alpino_sentence(self, sentence: AlpinoSentence) -> None:
+    def _set_stanza_sentence(self, sentence: StanzaSentence) -> None:
+        self.sentence_string = sentence.text
+        for stanza_token in sentence.words:
+            token = {
+                'word': stanza_token.text,
+                'lemma': stanza_token.lemma,
+                'pos': stanza_token.pos
+            }
+            self.sentence_tokens.append(token)
+
+    def _set_alpino_sentence(self, sentence: AlpinoSentence) -> None:
         self.sentence_string = sentence.sentence_string
         for word_node in sentence.word_nodes:
             token = {
@@ -140,13 +145,13 @@ class Matcher:
             self.sentence_tokens.append(token)
             self.add_candidate_rules(token['word'], token['lemma'])
 
-    def set_dict_sentence(self, sentence: dict) -> None:
+    def _set_dict_sentence(self, sentence: dict) -> None:
         self.sentence_string = sentence['text']
         for token in sentence['tokens']:
             self.sentence_tokens.append(token)
             self.add_candidate_rules(token['word'], token['lemma'])
 
-    def set_string_sentence(self, sentence: str) -> None:
+    def _set_string_sentence(self, sentence: str) -> None:
         self.sentence_string = sentence
         for word in re.split(r'\W+', sentence):
             token = {
@@ -162,21 +167,21 @@ class Matcher:
     def set_sentence(self, sentence: Union[str, SpacySentence, AlpinoSentence]) -> None:
         self.sentence_tokens = []
         # reset candidate rules dictionary
-        self.candidate_rules = {}
+        self.candidate_rules = defaultdict(int)
         if isinstance(sentence, SpacySentence):
-            self.set_spacy_sentence(sentence)
+            self._set_spacy_sentence(sentence)
         elif isinstance(sentence, AlpinoSentence):
-            self.set_alpino_sentence(sentence)
+            self._set_alpino_sentence(sentence)
         elif isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
-            self.set_dict_sentence(sentence)
+            self._set_dict_sentence(sentence)
         elif isinstance(sentence, str) and is_alpino_xml_string(sentence):
             alpino_sentence = AlpinoSentence(sentence)
-            self.set_alpino_sentence(alpino_sentence)
+            self._set_alpino_sentence(alpino_sentence)
         elif isinstance(sentence, str):
-            self.set_string_sentence(sentence)
+            self._set_string_sentence(sentence)
         else:
             raise TypeError(
-                "sentence must be either a string, an AlpinoSentence object or a Spacy Span object.")
+                "sentence must be either a string, an Sentence object from Alpino, Spacy or Stanza.")
 
     def term_sentence_match(self, term, word_boundaries=True):
         """
@@ -240,8 +245,17 @@ class Matcher:
                 print("match_string", match_string)
         elif location == "sentence_end":
             match_string = match_string + r"$"
-        for match in re.finditer(match_string, sentence):
-            yield match
+        try:
+            for match in re.finditer(match_string, sentence):
+                yield match
+        except re.error:
+            print('match_string:', match_string)
+            print('sentence:', sentence)
+            raise
+
+    def find_impact_matches(self, sentence):
+        """Return all matching impact rules for a given sentence."""
+        return self.match_rules(sentence=sentence)
 
     def match_rules(self, sentence=None):
         """Match sentence against all impact rules of the impact model."""

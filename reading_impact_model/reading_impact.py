@@ -1,6 +1,6 @@
 from typing import Dict, List, Union
 from impact_model import ImpactModel
-from alpino_matcher import AlpinoMatcher, AlpinoSentence
+from alpino_matcher import AlpinoSentence, AlpinoError
 
 
 class ReadingImpact:
@@ -22,5 +22,3 @@ class ReadingImpact:
         else:
             raise AlpinoError(
                 "sentence must be an AlpinoSentence object or a JSON representation of Alpino XML output")
-
-    def
