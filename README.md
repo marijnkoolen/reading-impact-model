@@ -3,36 +3,26 @@ Reading Impact Model for analyzing reading impact in online book reviews.
 
 ## Usage
 
-Basic usage of the Dutch and English language impact models:
-
+Basic usage of the English language impact model:
 ```python
 from reading_impact_model.matcher import Matcher
 from reading_impact_model import model_loader
 
-impact_model_nl = model_loader(lang='nl')
-matcher_nl = Matcher(impact_model_nl, debug=False)
-
-sent_nl = 'Dit boek is meeslepend.'
-
-matches = matcher_nl.match_rules(sentence=sent_nl)
-
-for match in matches:
-    print(match.match_word)  # 'meeslepend'
-    print(match.impact_term)  # 'meeslepend'
-    print(match.impact_term_type)  # 'Affect'
-    for condition_match in match.condition_matches:
-        print(condition_match.match_word)  # 'boek'
-        print(condition_match.condition_term)  # 'boek'
-        print(condition_match.condition_type)  # 'general'
-
 impact_model_en = model_loader(lang='en')
 matcher_en = Matcher(impact_model_en, debug=False)
 
-sent_en = 'The theme is beautifully addressed by the author with witty banter.'
+sent_en = 'The writing is beautiful.'
 
 matches = matcher_en.match_rules(sentence=sent_en)
+
 for match in matches:
-    print(match.json)
+    print(match.match_word)                  # 'beautiful'
+    print(match.impact_term)                 # 'beautiful'
+    print(match.impact_term_type)            # 'style'
+    for condition_match in match.condition_matches:
+        print(condition_match.match_word)     # 'writing'
+        print(condition_match.condition_term) # 'writing'
+        print(condition_match.condition_type) # 'style'
 
 ```
 
@@ -44,16 +34,17 @@ import spacy
 from reading_impact_model.matcher import Matcher
 from reading_impact_model import model_loader
 
-impact_model_nl = model_loader(lang='nl')
-matcher_nl = Matcher(impact_model_nl, debug=False)
+impact_model = model_loader(lang='en')
+matcher = Matcher(impact_model, debug=False)
 
-nlp = spacy.load('nl_core_news_lg')
+nlp = spacy.load('en_core_news_lg')
 
-sentence = 'Ik werd echt helemaal meegesleept door het verhaal, want het was erg meeslepend zodat ik me liet meeslepen.'
+sentence = 'The dialogue is full of witty banter.'
 
 doc = nlp(sentence)
 for sent in doc.sents:
     print(sent)
-    matches = matcher_nl.match_rules(sentence=sent)
-    print('matches:', matches)
+    matches = matcher.match_rules(sentence=sent)
+    for match in matches:
+        print(match.json)
 ```
