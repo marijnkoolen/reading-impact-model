@@ -1,5 +1,5 @@
 from unittest import TestCase
-from reading_impact_model import matcher
+from reading_impact_model.matchers import matcher
 from reading_impact_model import impact_model
 
 
@@ -62,3 +62,22 @@ class TestMatcherComplexModel(TestCase):
     def test_rule_term_indexer_handles_phrases(self):
         for term in self.matcher.impact_rule_term_index:
             print(term)
+
+
+class TestMatcherSentenceSetting(TestCase):
+
+    def setUp(self) -> None:
+        self.matcher = matcher.ImpactMatcher(lang='en')
+
+    def test_set_sentence(self):
+        sentence = 'This is a beautifully written, stylistically interesting sentence'
+        self.matcher._set_sentence(sentence)
+        print(self.matcher.sentence_vocab_terms)
+        self.assertEqual(True, 'beautifully' in self.matcher.sentence_vocab_terms)
+
+    def test_set_sentence_indexes_wildcard_terms(self):
+        sentence = 'This is a beautifully written, stylistically interesting sentence'
+        self.matcher._set_sentence(sentence)
+        print(self.matcher.sentence_vocab_terms)
+        self.assertEqual(True, 'written' in self.matcher.sentence_vocab_terms)
+        self.assertEqual(True, 'stylistic*' in self.matcher.sentence_vocab_terms)

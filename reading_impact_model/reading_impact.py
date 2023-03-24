@@ -1,6 +1,5 @@
-from typing import Dict, List, Union
 from impact_model import ImpactModel
-from alpino_matcher import AlpinoSentence, AlpinoError
+from reading_impact_model.matchers.alpino_matcher import AlpinoSentence, AlpinoError
 
 
 class ReadingImpact:

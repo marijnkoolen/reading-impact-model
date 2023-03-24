@@ -1,14 +1,42 @@
 import re
 from collections import defaultdict
-from typing import List, Union
+from typing import Dict, List, Union
 
-from spacy.tokens import Span as SpacySentence
-from stanza.models.common.doc import Sentence as StanzaSentence
+from nltk.tokenize import sent_tokenize
 
-from reading_impact_model.impact_model import ImpactModel, ImpactTerm, ImpactRule, ImpactMatch, ConditionMatch
+from reading_impact_model.impact_model import ImpactModel, ImpactRule, ImpactMatch, ConditionMatch, Token
 from reading_impact_model.impact_model import load_model
 from reading_impact_model.impact_model import is_wildcard_term, wildcard_term_match
-from reading_impact_model.alpino_matcher import AlpinoSentence, is_alpino_xml_string
+
+
+def init_impact_scores(lang: str = 'en') -> Dict[str, int]:
+    if lang == 'en':
+        return {
+            "positive": 0,
+            "style": 0,
+            "reflection": 0,
+            "narrative": 0,
+            "negative": 0,
+            "surprise": 0,
+            "attention": 0,
+            "humor": 0
+        }
+    elif lang == 'nl':
+        return {
+            'affect': 0,
+            'narrative': 0,
+            'style': 0,
+            'reflection': 0
+        }
+    else:
+        raise ValueError(f'unknown language option "{lang}", must be one of ["en", "nl"]')
+
+
+def map_review_impact(match):
+    if match['impact_type'] == 'Affect':
+        return 'positive'
+    else:
+        return match['impact_type'].lower()
 
 
 def term_match(sentence_term, model_term):
@@ -46,17 +74,6 @@ def remove_trailing_punctuation(string):
     return re.sub(r"^\W*\b(.*)\b\W*$", r"\1", string)
 
 
-def check_alpino_sentence(alpino_sentence: Union[str, AlpinoSentence]) -> bool:
-    """Check that either a new valid alpino sentence is given or that a valid alpino sentence is already set."""
-    if isinstance(alpino_sentence, AlpinoSentence):
-        return True
-    try:
-        alpino_sentence = AlpinoSentence(alpino_sentence)
-        return True
-    except ValueError:
-        return False
-
-
 class ImpactMatcher:
 
     def __init__(self, lang: str = 'en', impact_model: ImpactModel = None, debug: bool = False):
@@ -70,6 +87,7 @@ class ImpactMatcher:
         :param impact_model: a specific impact model, if you want to override the default model.
         :type impact_model: ImpactModel
         """
+        self.lang = lang
         if lang is not None:
             self.impact_model = load_model(lang=lang)
             print('lang:', lang)
@@ -81,107 +99,117 @@ class ImpactMatcher:
         self.debug = debug
         self.sentence_string = ''
         self.sentence_tokens = []
-        self.candidate_rules = {}
+        self.sentence_vocab_terms = defaultdict(set)
+        self.sentence_impact_terms = set()
+        self.sentence_aspect_terms = set()
+        self.candidate_rules = defaultdict(int)
         self.impact_rule_term_index = defaultdict(list)
-        self.index_impact_rule_words()
+        self._index_impact_rule_words()
 
-    def index_impact_rule_words(self):
+    def _index_impact_rule_string(self, string: str, rule: ImpactRule, term_type: str):
+        if term_type == 'term':
+            self.impact_rule_term_index[string] += [rule]
+        elif term_type == 'phrase' or term_type == 'regex':
+            try:
+                for phrase_part in string.strip().split(' '):
+                    if phrase_part[0] == '(' and phrase_part[-1] == ')':
+                        phrase_part_terms = re.split(r'[ |]', phrase_part[1:-1])
+                        # phrase_part_terms = phrase_part[1:-1].split('|')
+                        for term in phrase_part_terms:
+                            self.impact_rule_term_index[term] += [rule]
+                    else:
+                        self.impact_rule_term_index[phrase_part] += [rule]
+            except IndexError:
+                print(string)
+                print(string.split(' '))
+                raise
+
+    def _index_impact_rule_words(self):
         for rule in self.impact_model.impact_rules:
-            if rule.impact_term.type == 'term':
-                self.impact_rule_term_index[rule.impact_term.string] += [rule]
-            elif rule.impact_term.type == 'phrase' or rule.impact_term.type == 'regex':
-                try:
-                    for phrase_part in rule.impact_term.string.strip().split(' '):
-                        if phrase_part[0] == '(' and phrase_part[-1] == ')':
-                            phrase_part_terms = re.split(r'[ |]', phrase_part[1:-1])
-                            # phrase_part_terms = phrase_part[1:-1].split('|')
-                            for term in phrase_part_terms:
-                                self.impact_rule_term_index[term] += [rule]
-                        else:
-                            self.impact_rule_term_index[phrase_part] += [rule]
-                except IndexError:
-                    print(rule.impact_term.string)
-                    print(rule.impact_term.string. split(' '))
-                    raise
+            self._index_impact_rule_string(rule.impact_term.string, rule, rule.impact_term.type)
+            # print(rule.condition)
+            # if rule.condition and rule.condition['context_term']:
+            #     self._index_impact_rule_string(rule.condition['context_term'], rule, rule.condition['term_type'])
 
     def add_candidate_rules(self, token, lemma):
+        # print('token:', token)
         if token in self.impact_rule_term_index:
+            # print('\tin term index')
             for rule in self.impact_rule_term_index[token]:
+                # print('\tadding rule', rule)
                 self.candidate_rules[rule] += 1
         if lemma != token and lemma in self.impact_rule_term_index:
             for rule in self.impact_rule_term_index[lemma]:
                 self.candidate_rules[rule] += 1
 
-    def _set_spacy_sentence(self, sentence: SpacySentence) -> None:
-        self.sentence_string = sentence.text
-        for spacy_token in sentence:
-            token = {
-                'word': spacy_token.text,
-                'lemma': spacy_token.lemma_,
-                'pos': spacy_token.pos_.lower()
-            }
-            self.sentence_tokens.append(token)
-            if not spacy_token.is_stop:
-                self.add_candidate_rules(spacy_token.text, spacy_token.lemma_)
-
-    def _set_stanza_sentence(self, sentence: StanzaSentence) -> None:
-        self.sentence_string = sentence.text
-        for stanza_token in sentence.words:
-            token = {
-                'word': stanza_token.text,
-                'lemma': stanza_token.lemma,
-                'pos': stanza_token.pos
-            }
-            self.sentence_tokens.append(token)
-
-    def _set_alpino_sentence(self, sentence: AlpinoSentence) -> None:
-        self.sentence_string = sentence.sentence_string
-        for word_node in sentence.word_nodes:
-            token = {
-                'word': word_node['@word'],
-                'lemma': word_node['@lemma'],
-                'pos': word_node['@pos']
-            }
-            self.sentence_tokens.append(token)
-            self.add_candidate_rules(token['word'], token['lemma'])
+    def _add_sentence_token(self, token: Token):
+        self.sentence_tokens.append(token)
+        vocab_terms = self.impact_model.get_matching_vocab_term(token.word)
+        if isinstance(vocab_terms, str):
+            self.sentence_vocab_terms[vocab_terms].add(token)
+        elif isinstance(vocab_terms, set):
+            for vocab_term in vocab_terms:
+                self.sentence_vocab_terms[vocab_term].add(token)
+        if token.lemma == token.word:
+            return None
+        vocab_terms = self.impact_model.get_matching_vocab_term(token.lemma)
+        if isinstance(vocab_terms, str):
+            self.sentence_vocab_terms[vocab_terms].add(token)
+        elif isinstance(vocab_terms, set):
+            for vocab_term in vocab_terms:
+                self.sentence_vocab_terms[vocab_term].add(token)
 
     def _set_dict_sentence(self, sentence: dict) -> None:
         self.sentence_string = sentence['text']
-        for token in sentence['tokens']:
-            self.sentence_tokens.append(token)
-            self.add_candidate_rules(token['word'], token['lemma'])
+        for ti, token in enumerate(sentence['tokens']):
+            token = Token(word=token.word, index=ti, lemma=token.lemma, pos=token.pos if 'pos' in token else None)
+            self._add_sentence_token(token)
+            self.add_candidate_rules(token.word, token.lemma)
 
     def _set_string_sentence(self, sentence: str) -> None:
         self.sentence_string = sentence
-        for word in re.split(r'\W+', sentence):
-            token = {
-                'word': word,
-                'lemma': word,
-                'pos': None
-            }
-            self.sentence_tokens.append(token)
+        words = re.split(r'\W+', sentence)
+        for wi, word in enumerate(words):
+            token = Token(word, wi, lemma=word)
+            self._add_sentence_token(token)
             self.add_candidate_rules(word, word)
         # print('sentence_string:', self.sentence_string)
         # print('sentence_tokens:', self.sentence_tokens)
 
-    def set_sentence(self, sentence: Union[str, SpacySentence, AlpinoSentence]) -> None:
+    def _reset_sentence(self):
+        self.sentence_string = ''
         self.sentence_tokens = []
-        # reset candidate rules dictionary
+        self.sentence_vocab_terms = defaultdict(set)
         self.candidate_rules = defaultdict(int)
-        if isinstance(sentence, SpacySentence):
-            self._set_spacy_sentence(sentence)
-        elif isinstance(sentence, AlpinoSentence):
-            self._set_alpino_sentence(sentence)
-        elif isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
+
+    def _set_sentence(self, sentence: str) -> None:
+        self._reset_sentence()
+        if isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
             self._set_dict_sentence(sentence)
-        elif isinstance(sentence, str) and is_alpino_xml_string(sentence):
-            alpino_sentence = AlpinoSentence(sentence)
-            self._set_alpino_sentence(alpino_sentence)
         elif isinstance(sentence, str):
             self._set_string_sentence(sentence)
         else:
             raise TypeError(
                 "sentence must be either a string, an Sentence object from Alpino, Spacy or Stanza.")
+
+    def _iter_text_sentences(self, text: str):
+        for si, sent in enumerate(sent_tokenize(text, language=self.lang)):
+            self._set_sentence(sent)
+            yield si
+
+    def analyse_text(self, text: str,
+                     include_scores: bool = True,
+                     include_matches: bool = True,
+                     include_neutral: bool = False) -> Dict[str, any]:
+        all_matches = []
+        for sentence_index in self._iter_text_sentences(text):
+            sentence_matches = self._match_rules()
+            all_matches.extend(sentence_matches)
+        review_impact = self.compute_review_impact(all_matches,
+                                                   include_matches=include_matches,
+                                                   include_scores=include_scores,
+                                                   include_neutral=include_neutral)
+        return review_impact
 
     def term_sentence_match(self, term, word_boundaries=True):
         """
@@ -195,36 +223,40 @@ class ImpactMatcher:
             return term in self.sentence_string
 
     def get_sentence_words_matching_term(self, match_term, ignorecase=True):
-        for token_index, token in enumerate(self.sentence_tokens):
+        match_tokens = self.sentence_vocab_terms[match_term] if match_term in self.sentence_vocab_terms else []
+        for token in match_tokens:
             if ignorecase:
-                word = token['word'].lower()
+                word = token.word.lower()
                 match_term = match_term.lower()
             else:
-                word = token['word']
+                word = token.word
             if term_match(word, match_term):
-                yield token_index, token
+                yield token
 
     def get_sentence_lemmas_matching_term(self, match_term, match_pos, ignorecase=True):
         if self.debug:
             print("looking for lemmas matching term:", match_term, match_pos)
-        for token_index, token in enumerate(self.sentence_tokens):
+            print(self.sentence_vocab_terms)
+            print(match_term in self.sentence_vocab_terms)
+        match_tokens = self.sentence_vocab_terms[match_term] if match_term in self.sentence_vocab_terms else []
+        for token in match_tokens:
             if ignorecase:
-                lemma = token['lemma'].lower()
-                word = token['word'].lower()
+                lemma = token.lemma.lower()
+                word = token.word.lower()
                 match_term = match_term.lower()
             else:
-                lemma = token['lemma']
-                word = token['word']
+                lemma = token.lemma
+                word = token.word
             if self.debug:
-                print("\tlemma:", token["lemma"], "pos:", token["pos"])
+                print("\tlemma:", token.lemma, "pos:", token.pos)
             # CHANGED 2020-06-18: also check if match term matches the word in the sentence, not just the lemma
             # matching either is good enough
             if not term_match(lemma, match_term) and not term_match(word, match_term):
                 continue
-            if not match_pos or not token['pos'] or token['pos'] == match_pos or token['pos'] == "name":
+            if not match_pos or not token.pos or token.pos == match_pos or token.pos == "name":
                 if self.debug:
                     print("MATCH OF LEMMA AND POS!")
-                yield token_index, token
+                yield token
             elif self.debug:
                 print("MATCH OF LEMMA BUT NOT OF POS!")
                 print(token["pos"])
@@ -255,11 +287,11 @@ class ImpactMatcher:
 
     def find_impact_matches(self, sentence):
         """Return all matching impact rules for a given sentence."""
-        return self.match_rules(sentence=sentence)
+        self._set_sentence(sentence)
+        return self._match_rules()
 
-    def match_rules(self, sentence=None):
+    def _match_rules(self):
         """Match sentence against all impact rules of the impact model."""
-        self.set_sentence(sentence)
         return [match for impact_rule in self.candidate_rules for match in self.match_rule(impact_rule)]
 
     def match_rule(self, impact_rule: ImpactRule, sentence=None) -> List[ImpactMatch]:
@@ -267,7 +299,7 @@ class ImpactMatcher:
         if sentence:
             if self.debug:
                 print('setting sentence for single rule match')
-            self.set_sentence(sentence)
+            self._set_sentence(sentence)
         if impact_rule.impact_term.type == "phrase":
             return self.match_impact_phrase(impact_rule)
         if impact_rule.impact_term.type == "regex":
@@ -300,13 +332,13 @@ class ImpactMatcher:
         if self.debug:
             print("match_term:", match_term, "match_pos:", match_pos)
             print("sentence:", self.sentence_string)
-        for impact_index, impact_token in self.get_sentence_lemmas_matching_term(match_term, match_pos,
-                                                                                 ignorecase=impact_rule.ignorecase):
-            impact_match = ImpactMatch(impact_token['word'], impact_token['lemma'], impact_index,
+        for impact_token in self.get_sentence_lemmas_matching_term(match_term, match_pos,
+                                                                   ignorecase=impact_rule.ignorecase):
+            impact_match = ImpactMatch(impact_token.word, impact_token.lemma, impact_token.index,
                                        impact_rule.impact_term.string, impact_rule.impact_term.type,
                                        impact_rule.impact_type)
             if self.debug:
-                print("match term:", impact_token["word"])
+                print("match term:", impact_token.word)
             if self.match_condition(impact_rule, impact_match):
                 impact_matches.append(impact_match)
             elif self.debug:
@@ -352,17 +384,17 @@ class ImpactMatcher:
             return False
         for aspect_term in aspect_info["aspect_term"]:
             condition_matches = []
-            for match_index, aspect_match in self.get_sentence_words_matching_term(aspect_term,
-                                                                                   ignorecase=impact_rule.ignorecase):
-                condition_match = ConditionMatch(aspect_match['word'], aspect_match['lemma'], match_index,
+            for aspect_match in self.get_sentence_words_matching_term(aspect_term,
+                                                                      ignorecase=impact_rule.ignorecase):
+                condition_match = ConditionMatch(aspect_match.word, aspect_match.lemma, aspect_match.index,
                                                  aspect_term, aspect_group)
                 condition_matches.append(condition_match)
             if len(condition_matches) > 0:
                 impact_match.condition_matches = condition_matches
                 return True
-            for match_index, aspect_match in self.get_sentence_lemmas_matching_term(aspect_term, None,
-                                                                                    ignorecase=impact_rule.ignorecase):
-                condition_match = ConditionMatch(aspect_match['word'], aspect_match['lemma'], match_index,
+            for aspect_match in self.get_sentence_lemmas_matching_term(aspect_term, None,
+                                                                       ignorecase=impact_rule.ignorecase):
+                condition_match = ConditionMatch(aspect_match.word, aspect_match.lemma, aspect_match.token,
                                                  aspect_term, aspect_group)
                 condition_matches.append(condition_match)
             if len(condition_matches) > 0:
@@ -389,3 +421,35 @@ class ImpactMatcher:
             return True
         else:
             return False
+
+    def compute_review_impact(self, impact_matches: List[ImpactMatch],
+                              include_scores: bool = True,
+                              include_matches: bool = True,
+                              include_neutral: bool = False) -> Dict[str, any]:
+        positive_sub_cat = {'style', 'narrative', 'humor'}
+        review_impact = {
+            'scores': init_impact_scores(self.lang),
+            'matches': []
+        }
+        counted = set()
+        for match in impact_matches:
+            if include_neutral is False and match.impact_type == 'Neutral':
+                continue
+            match = match.json
+            review_impact['matches'].append(match)
+            if match['impact_type'] == 'Neutral':
+                continue
+            impact_type = map_review_impact(match)
+            if (match['match_index'], impact_type) not in counted:
+                review_impact['scores'][impact_type] += 1
+                counted.add((match['match_index'], impact_type))
+            if impact_type in positive_sub_cat:
+                if (match['match_index'], 'positive') not in counted:
+                    review_impact['scores']['positive'] += 1
+                    counted.add((match['match_index'], 'positive'))
+        if include_scores is False:
+            del review_impact['scores']
+        if include_matches is False:
+            del review_impact['matches']
+        return review_impact
+

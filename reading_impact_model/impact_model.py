@@ -1,7 +1,9 @@
 from __future__ import annotations
 import json
+import os
 import pickle
 from collections import defaultdict
+from functools import partial
 from typing import Dict, List, Set, Union
 
 
@@ -53,6 +55,15 @@ def wildcard_term_match(sentence_term: str, match_term: str):
         return sentence_term.startswith(start) and sentence_term.endswith(end)
     else:
         return False
+
+
+class Token:
+
+    def __init__(self, word: str, index: int, lemma: str = None, pos: str = None):
+        self.word = word
+        self.index = index
+        self.lemma = lemma if lemma else word
+        self.pos = pos
 
 
 class Term:
@@ -171,7 +182,8 @@ def read_impact_model(model_file: str, file_type: str = 'json'):
 
 class ImpactModel(object):
 
-    def __init__(self, model_file: str = None, model_json: Dict[str, any] = None):
+    def __init__(self, model_file: str = None, model_json: Dict[str, any] = None,
+                 add_wildcard_matches: bool = True):
         if model_file is not None:
             model_json = read_impact_model(model_file)
         self.model_json = model_json
@@ -183,13 +195,15 @@ class ImpactModel(object):
         self.impact_terms: List[ImpactTerm] = []
         self.vocab: Dict[str, Set[str]] = defaultdict(set)
         self.wildcard_vocab: Dict[str, Set[str]] = defaultdict(set)
+        self.added_vocab: Dict[str, Set[str]] = defaultdict(set)
         self.prefix_wildcard_lengths: Dict[int, Set[str]] = defaultdict(set)
         self.postfix_wildcard_lengths: Dict[int, Set[str]] = defaultdict(set)
         self.infix_wildcard_lengths: Dict[int, Set[str]] = defaultdict(set)
-        self.prefix_vocab = defaultdict(lambda: defaultdict(set))
-        self.postfix_vocab = defaultdict(lambda: defaultdict(set))
-        self.infix_vocab = defaultdict(lambda: defaultdict(set))
+        self.prefix_vocab = defaultdict(partial(defaultdict, set))
+        self.postfix_vocab = defaultdict(partial(defaultdict, set))
+        self.infix_vocab = defaultdict(partial(defaultdict, set))
         self.impact_rules = [make_impact_rule(rule_json) for rule_json in model_json['impact_rules']]
+        self.add_wildcard_matches = add_wildcard_matches
         self._index_impact_terms(model_json['impact_rules'])
         self.make_rule_index()
         if 'aspect_terms' in model_json:
@@ -326,16 +340,21 @@ class ImpactModel(object):
         """
         if term in self.vocab:
             return term_type in self.vocab[term]
+        if term in self.added_vocab:
+            wildcard_terms = term_type in self.added_vocab[term]
         else:
             wildcard_terms = self.matches_wildcard_terms(term)
-            for wildcard_term in wildcard_terms:
-                if term_type in self.vocab[wildcard_term]:
-                    return True
-            return False
+        for wildcard_term in wildcard_terms:
+            if term_type in self.vocab[wildcard_term]:
+                self.added_vocab[term].add(wildcard_term)
+                return True
+        return False
 
     def get_matching_vocab_term(self, term: str) -> Union[None, str, Set[str]]:
         if term in self.vocab:
             return term
+        if term in self.added_vocab:
+            return self.added_vocab[term]
         wildcard_terms = self.matches_wildcard_terms(term)
         if len(wildcard_terms) == 0:
             return None
@@ -493,12 +512,26 @@ def make_aspect_term(aspect_term_json: Dict[str, str]) -> AspectTerm:
 
 
 def import_model(lang: str):
+    # solution from:
+    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+    try:
+        import importlib.resources as pkg_resources
+    except ImportError:
+        # Try backported to PY<37 `importlib_resources`.
+        import importlib_resources as pkg_resources
+
+    # relative-import the *package* containing the models
+    from . import models
+
     if lang == 'en':
-        from reading_impact_model.models.impact_model_en import model_en
-        return model_en
-    if lang == 'nl':
-        from reading_impact_model.models.impact_model_nl import model_nl
-        return model_nl
+        print(os.getcwd())
+        model_file = 'impact_model-en.json'
+    elif lang == 'nl':
+        model_file = 'impact_model-nl.json'
+    else:
+        raise ValueError(f'unknown language option "{lang}", must be one of ["en", "nl"]')
+    model_json_string = pkg_resources.read_text(models, model_file)
+    return json.loads(model_json_string)
 
 
 def load_model(lang: str = 'en', model_file: str = None) -> ImpactModel:

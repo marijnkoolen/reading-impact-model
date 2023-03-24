@@ -1,7 +1,7 @@
 import re
 
-from reading_impact_model.alpino_matcher import AlpinoSentence, AlpinoError
-from reading_impact_model.matcher import ImpactModel, term_match
+from reading_impact_model.matchers.alpino_matcher import AlpinoSentence, AlpinoError
+from reading_impact_model.matchers.matcher import ImpactModel, term_match
 
 class AlpinoMatcher(object):
 
