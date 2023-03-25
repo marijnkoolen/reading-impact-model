@@ -4,6 +4,8 @@ Reading Impact Model for analyzing reading impact in online book reviews.
 - [Explanation of the impact types](./docs/impact.md)
 - [Examples of impact types](./docs/examples.md)
 - [Installation and Usage](#installation-and-usage)
+- [Citing](#citing)
+- [Contributors](#contributors)
 
 ## The Impact of Fiction
 
@@ -175,6 +177,10 @@ Impact from English Book Reviews._ Journal of Computational Literary
 Studies, 1(1).
 
 ## Contributors
+
+The `reading-impact-model` package was developed by Marijn Koolen. The rule
+set and dictionaries were created by Peter Boot, Julia Neugarten and Marijn
+Koolen.
 
 The following people are or have been involved in the Impact & Fiction project:
 
