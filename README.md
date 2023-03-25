@@ -168,13 +168,13 @@ Which matches the lemma _sentence_ instead of the word _sentences_, which is not
 
 If you use this package, please cite the following publications:
 
-- Boot, P., & Koolen, M. (2020). _Captivating, splendid or instructive? 
-Assessing the impact of reading in online book reviews._ Scientific Study 
-of Literature, 10(1), 35-63.
-- Koolen, M., Neugarten, J., & Boot, P. (2022). _‘This book makes me 
+- Boot, P., & Koolen, M. (2020). [Captivating, splendid or instructive? 
+Assessing the impact of reading in online book reviews.](https://www.jbe-platform.com/content/journals/10.1075/ssol.20003.boo) 
+Scientific Study of Literature, 10(1), 35-63. ([pre-pub PDF](https://marijnkoolen.com/publications/2020/boot2020captivating.pdf))
+- Koolen, M., Neugarten, J., & Boot, P. (2022). [‘This book makes me 
 happy and sad and I love it’. A Rule-based Model for Extracting Reading 
-Impact from English Book Reviews._ Journal of Computational Literary 
-Studies, 1(1).
+Impact from English Book Reviews.](https://jcls.io/article/id/104/)
+Journal of Computational Literary Studies, 1(1).
 
 ## Contributors
 
