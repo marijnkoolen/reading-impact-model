@@ -1,6 +1,6 @@
 # Reading Impact
 
-[Back to README](../)
+[Back to README](https://github.com/marijnkoolen/reading-impact-model)
 
 In this study, we differentiate between eight types of (mostly
 affective) impact. By “affect” we mean the same thing as “emotion” or

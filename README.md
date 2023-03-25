@@ -1,8 +1,8 @@
 # reading-impact-model
 Reading Impact Model for analyzing reading impact in online book reviews.
 
-- [Impact categories](./docs/impact.md)
-- [Examples](./docs/examples.md)
+- [Explanation of the impact types](./docs/impact.md)
+- [Examples of impact types](./docs/examples.md)
 - [Usage](#usage)
 
 ## The Impact of Fiction
@@ -76,58 +76,95 @@ engaging, often suspenseful narrative are less frequently described as having an
 affecting style or inviting reflection. Think of your favorite thriller: is this
 true in that case?
 
-## Usage
+## Installation and Usage
+
+You can install the package via pip:
+
+```
+pip install reading-impact-model
+```
 
 Basic usage of the English language impact model:
 
 ```python
-from reading_impact_model.matchers.matcher import Matcher
-from reading_impact_model import model_loader
+from reading_impact_model.matchers.matcher import ImpactMatcher
 
-impact_model_en = model_loader(lang='en')
-matcher_en = Matcher(impact_model_en, debug=False)
+matcher = ImpactMatcher(lang='en')
 
-sent_en = 'The writing is beautiful.'
+matcher.analyse_text('The book has beautiful writing.', doc_id='some_doc_id')
+```
 
-matches = matcher_en.match_rules(sentence=sent_en)
+Which gives the following output:
 
-for match in matches:
-    print(match.match_word)  # 'beautiful'
-    print(match.impact_term)  # 'beautiful'
-    print(match.impact_term_type)  # 'style'
-    for condition_match in match.condition_matches:
-        print(condition_match.match_word)  # 'writing'
-        print(condition_match.condition_term)  # 'writing'
-        print(condition_match.condition_type)  # 'style'
-
+```python
+[{'doc_id': 'some_doc_id',
+  'sentence_index': None,
+  'sentence': 'The book has beautiful writing.',
+  'reflection': 0,
+  'style': 1,
+  'attention': 0,
+  'humor': 0,
+  'surprise': 0,
+  'narrative': 0,
+  'negative': 0,
+  'positive': 1,
+  'match_index': 3,
+  'impact_term_type': 'term',
+  'impact_term': 'beautiful',
+  'impact_type': 'Style',
+  'match_lemma': 'beautiful',
+  'match_word': 'beautiful',
+  'condition_match_index': 4,
+  'condition_term': 'writing',
+  'condition_match_lemma': 'writing',
+  'condition_type': 'style',
+  'condition_match_word': 'writing'}]
 ```
 
 
-The matcher accepts sentences as string but also Spacy sent objects:
+There are different matchers that can incorporate syntax parsers to 
+add POS and lemma information to word tokens, for improved rule matching.
+
+E.g. the `SpacyMatcher` accepts a Spacy parser (and requires you to have 
+installed spacy and an appropriate language model.)
+```python
+from reading_impact_model.matchers.spacy_matcher import SpacyMatcher
+import spacy
+
+nlp = spacy.load('en_core_web_trf') 
+matcher = SpacyMatcher(parser=nlp)
+```
+
+Which matches the lemma _sentence_ instead of the word _sentences_, which is not in the aspect dictionary.
 
 ```python
-import spacy
-from reading_impact_model.matchers.matcher import Matcher
-from reading_impact_model import model_loader
-
-impact_model = model_loader(lang='en')
-matcher = Matcher(impact_model, debug=False)
-
-nlp = spacy.load('en_core_news_lg')
-
-sentence = 'The dialogue is full of witty banter.'
-
-doc = nlp(sentence)
-for sent in doc.sents:
-    print(sent)
-    matches = matcher.match_rules(sentence=sent)
-    for match in matches:
-        print(match.json)
+[{'doc_id': 'some_doc_id',
+  'sentence_index': 0,
+  'sentence': 'The book contains some beautifully written sentences.',
+  'style': 1,
+  'surprise': 0,
+  'negative': 0,
+  'narrative': 0,
+  'humor': 0,
+  'attention': 0,
+  'reflection': 0,
+  'positive': 1,
+  'match_index': 4,
+  'impact_type': 'Style',
+  'impact_term': 'beautifully',
+  'match_word': 'beautifully',
+  'impact_term_type': 'term',
+  'match_lemma': 'beautifully',
+  'condition_type': 'style',
+  'condition_match_word': 'sentences',
+  'condition_match_index': 6,
+  'condition_match_lemma': 'sentence',
+  'condition_term': 'sentence'}]
 ```
 
 <h3>Contributors</h3>
 
-The following people have been involved in this project:
+The following people are or have been involved in the Impact & Fiction project:
 
 <ul>
     <li>Peter Boot</li>

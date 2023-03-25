@@ -68,8 +68,6 @@ class ImpactMatcher:
         self.lang = lang
         if lang is not None:
             self.impact_model = load_model(lang=lang)
-            print('lang:', lang)
-            print('model:', self.impact_model)
         elif isinstance(impact_model, ImpactModel):
             self.impact_model = impact_model
         else:
@@ -167,6 +165,7 @@ class ImpactMatcher:
 
     def _set_sentence(self, sentence_index: int, sentence: str, doc_id: str) -> None:
         self._reset_sentence()
+        self.doc_id = doc_id
         if isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
             self._set_dict_sentence(sentence_index, sentence, doc_id)
         elif isinstance(sentence, str):
@@ -176,7 +175,7 @@ class ImpactMatcher:
                 "sentence must be either a string, an Sentence object from Alpino, Spacy or Stanza.")
 
     def _iter_text_sentences(self, text: str, doc_id: str = None):
-        for si, sent in enumerate(sent_tokenize(text, language=self.lang)):
+        for si, sent in enumerate(sent_tokenize(text)):
             self._set_sentence(si, sent, doc_id)
             yield si
 

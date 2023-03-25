@@ -539,7 +539,6 @@ def import_model(lang: str):
     from . import models
 
     if lang == 'en':
-        print(os.getcwd())
         model_file = 'impact_model-en.json'
     elif lang == 'nl':
         model_file = 'impact_model-nl.json'
