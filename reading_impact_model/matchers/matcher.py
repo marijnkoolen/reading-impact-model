@@ -5,31 +5,9 @@ from typing import Dict, List, Union
 from nltk.tokenize import sent_tokenize
 
 from reading_impact_model.impact_model import ImpactModel, ImpactRule, ImpactMatch, ConditionMatch, Token
+from reading_impact_model.impact_model import IMPACT_TYPES, IMPACT_MATCH_FIELDS, CONDITION_MATCH_FIELDS
 from reading_impact_model.impact_model import load_model
 from reading_impact_model.impact_model import is_wildcard_term, wildcard_term_match
-
-
-def init_impact_scores(lang: str = 'en') -> Dict[str, int]:
-    if lang == 'en':
-        return {
-            "positive": 0,
-            "style": 0,
-            "reflection": 0,
-            "narrative": 0,
-            "negative": 0,
-            "surprise": 0,
-            "attention": 0,
-            "humor": 0
-        }
-    elif lang == 'nl':
-        return {
-            'affect': 0,
-            'narrative': 0,
-            'style': 0,
-            'reflection': 0
-        }
-    else:
-        raise ValueError(f'unknown language option "{lang}", must be one of ["en", "nl"]')
 
 
 def map_review_impact(match):
@@ -99,6 +77,8 @@ class ImpactMatcher:
         self.debug = debug
         self.sentence_string = ''
         self.sentence_tokens = []
+        self.doc_id = None
+        self.sentence_index = None
         self.sentence_vocab_terms = defaultdict(set)
         self.sentence_impact_terms = set()
         self.sentence_aspect_terms = set()
@@ -159,15 +139,17 @@ class ImpactMatcher:
             for vocab_term in vocab_terms:
                 self.sentence_vocab_terms[vocab_term].add(token)
 
-    def _set_dict_sentence(self, sentence: dict) -> None:
+    def _set_dict_sentence(self, sentence_index: int, sentence: Dict[str, any], doc_id: str) -> None:
         self.sentence_string = sentence['text']
+        self.sentence_id = (sentence_index, doc_id)
         for ti, token in enumerate(sentence['tokens']):
             token = Token(word=token.word, index=ti, lemma=token.lemma, pos=token.pos if 'pos' in token else None)
             self._add_sentence_token(token)
             self.add_candidate_rules(token.word, token.lemma)
 
-    def _set_string_sentence(self, sentence: str) -> None:
+    def _set_string_sentence(self, sentence_index: int, sentence: str, doc_id: str) -> None:
         self.sentence_string = sentence
+        self.sentence_id = (sentence_index, doc_id)
         words = re.split(r'\W+', sentence)
         for wi, word in enumerate(words):
             token = Token(word, wi, lemma=word)
@@ -181,33 +163,30 @@ class ImpactMatcher:
         self.sentence_tokens = []
         self.sentence_vocab_terms = defaultdict(set)
         self.candidate_rules = defaultdict(int)
+        self.sent_id = None
 
-    def _set_sentence(self, sentence: str) -> None:
+    def _set_sentence(self, sentence_index: int, sentence: str, doc_id: str) -> None:
         self._reset_sentence()
         if isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
-            self._set_dict_sentence(sentence)
+            self._set_dict_sentence(sentence_index, sentence, doc_id)
         elif isinstance(sentence, str):
-            self._set_string_sentence(sentence)
+            self._set_string_sentence(sentence_index, sentence, doc_id)
         else:
             raise TypeError(
                 "sentence must be either a string, an Sentence object from Alpino, Spacy or Stanza.")
 
-    def _iter_text_sentences(self, text: str):
+    def _iter_text_sentences(self, text: str, doc_id: str = None):
         for si, sent in enumerate(sent_tokenize(text, language=self.lang)):
-            self._set_sentence(sent)
+            self._set_sentence(si, sent, doc_id)
             yield si
 
-    def analyse_text(self, text: str,
-                     include_scores: bool = True,
-                     include_matches: bool = True,
-                     include_neutral: bool = False) -> Dict[str, any]:
+    def analyse_text(self, text: str, doc_id: str = None,
+                     include_neutral: bool = False) -> List[Dict[str, any]]:
         all_matches = []
-        for sentence_index in self._iter_text_sentences(text):
+        for _ in self._iter_text_sentences(text, doc_id):
             sentence_matches = self._match_rules()
             all_matches.extend(sentence_matches)
         review_impact = self.compute_review_impact(all_matches,
-                                                   include_matches=include_matches,
-                                                   include_scores=include_scores,
                                                    include_neutral=include_neutral)
         return review_impact
 
@@ -317,7 +296,9 @@ class ImpactMatcher:
         for match in self.get_sentence_string_matching_term(impact_rule.impact_term.string,
                                                             ignorecase=impact_rule.ignorecase):
             impact_match = ImpactMatch(match.group(0), None, match.start(), impact_rule.impact_term.string,
-                                       impact_rule.impact_term.type, impact_rule.impact_type)
+                                       impact_rule.impact_term.type, impact_rule.impact_type,
+                                       doc_id=self.doc_id, sentence_index=self.sentence_index,
+                                       sentence=self.sentence_string)
             if self.match_condition(impact_rule, impact_match):
                 matches.append(impact_match)
             elif self.debug:
@@ -336,7 +317,9 @@ class ImpactMatcher:
                                                                    ignorecase=impact_rule.ignorecase):
             impact_match = ImpactMatch(impact_token.word, impact_token.lemma, impact_token.index,
                                        impact_rule.impact_term.string, impact_rule.impact_term.type,
-                                       impact_rule.impact_type)
+                                       impact_rule.impact_type,
+                                       doc_id=self.doc_id, sentence_index=self.sentence_index,
+                                       sentence=self.sentence_string)
             if self.debug:
                 print("match term:", impact_token.word)
             if self.match_condition(impact_rule, impact_match):
@@ -392,9 +375,9 @@ class ImpactMatcher:
             if len(condition_matches) > 0:
                 impact_match.condition_matches = condition_matches
                 return True
-            for aspect_match in self.get_sentence_lemmas_matching_term(aspect_term, None,
+            for aspect_token in self.get_sentence_lemmas_matching_term(aspect_term, None,
                                                                        ignorecase=impact_rule.ignorecase):
-                condition_match = ConditionMatch(aspect_match.word, aspect_match.lemma, aspect_match.token,
+                condition_match = ConditionMatch(aspect_token.word, aspect_token.lemma, aspect_token.index,
                                                  aspect_term, aspect_group)
                 condition_matches.append(condition_match)
             if len(condition_matches) > 0:
@@ -422,34 +405,48 @@ class ImpactMatcher:
         else:
             return False
 
-    def compute_review_impact(self, impact_matches: List[ImpactMatch],
-                              include_scores: bool = True,
-                              include_matches: bool = True,
-                              include_neutral: bool = False) -> Dict[str, any]:
-        positive_sub_cat = {'style', 'narrative', 'humor'}
-        review_impact = {
-            'scores': init_impact_scores(self.lang),
-            'matches': []
+    def init_impact_scores(self, match: ImpactMatch) -> Dict[str, int]:
+        impact = {
+            "doc_id": match.doc_id,
+            "sentence_index": match.sentence_index,
+            "sentence": match.sentence,
         }
+        for impact_type in IMPACT_TYPES[self.lang]:
+            impact[impact_type] = 0
+        for field in IMPACT_MATCH_FIELDS:
+            impact[field] = match.__getattribute__(field)
+        for cond_field in CONDITION_MATCH_FIELDS:
+            if len(match.condition_matches) > 0:
+                display_field = cond_field if cond_field.startswith('cond') else f'condition_{cond_field}'
+                impact[display_field] = match.condition_matches[0].__getattribute__(cond_field)
+        return impact
+
+    def compute_review_impact(self, impact_matches: List[ImpactMatch],
+                              include_neutral: bool = False) -> List[Dict[str, any]]:
+        positive_sub_cat = {'style', 'narrative', 'humor'}
+        review_impact = []
         counted = set()
         for match in impact_matches:
+            impact = self.init_impact_scores(match)
             if include_neutral is False and match.impact_type == 'Neutral':
                 continue
             match = match.json
-            review_impact['matches'].append(match)
+            for field in IMPACT_MATCH_FIELDS:
+                impact[field] = match[field]
+            for cond_field in CONDITION_MATCH_FIELDS:
+                if 'condition_match' in match and len(match['condition_match']) > 0:
+                    display_field = cond_field if cond_field.startswith('cond') else f'condition_{cond_field}'
+                    impact[display_field] = match['condition_match'][0][cond_field]
             if match['impact_type'] == 'Neutral':
                 continue
             impact_type = map_review_impact(match)
             if (match['match_index'], impact_type) not in counted:
-                review_impact['scores'][impact_type] += 1
+                impact[impact_type] += 1
                 counted.add((match['match_index'], impact_type))
             if impact_type in positive_sub_cat:
                 if (match['match_index'], 'positive') not in counted:
-                    review_impact['scores']['positive'] += 1
+                    impact['positive'] += 1
                     counted.add((match['match_index'], 'positive'))
-        if include_scores is False:
-            del review_impact['scores']
-        if include_matches is False:
-            del review_impact['matches']
+            review_impact.append(impact)
         return review_impact
 

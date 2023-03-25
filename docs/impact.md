@@ -1,5 +1,7 @@
 # Reading Impact
 
+[Back to README](../)
+
 In this study, we differentiate between eight types of (mostly
 affective) impact. By “affect” we mean the same thing as “emotion” or
 “feeling.”

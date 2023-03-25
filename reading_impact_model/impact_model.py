@@ -10,6 +10,14 @@ from typing import Dict, List, Set, Union
 WILDCARD_EXCEPTIONS = {'*sigh*', '*zucht*'}
 MIN_SUFFIX_LENGTH = 3
 
+IMPACT_TYPES = {
+    'en': {'positive', 'style', 'narrative', 'reflection', 'negative', 'surprise', 'attention', 'humor'},
+    'nl': {'affect', 'style', 'narrative', 'reflection'}
+}
+
+IMPACT_MATCH_FIELDS = {'match_word', 'match_lemma', 'match_index', 'impact_term', 'impact_type', 'impact_term_type'}
+CONDITION_MATCH_FIELDS = {'match_word', 'match_lemma', 'match_index', 'condition_term', 'condition_type'}
+
 
 def is_wildcard_term(term):
     """
@@ -108,7 +116,8 @@ class ImpactMatch(object):
 
     def __init__(self, match_word: str, match_lemma: Union[str, None],
                  match_index: int, impact_term: str,
-                 impact_term_type: str, impact_type: str):
+                 impact_term_type: str, impact_type: str,
+                 doc_id: str, sentence_index: int, sentence: str):
         self.match_word = match_word
         self.match_lemma = match_lemma
         self.match_index = match_index
@@ -116,6 +125,9 @@ class ImpactMatch(object):
         self.impact_term_type = impact_term_type
         self.impact_type = impact_type
         self.condition_matches: List[ConditionMatch] = []
+        self.doc_id = doc_id
+        self.sentence_index = sentence_index
+        self.sentence = sentence
 
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
@@ -129,7 +141,10 @@ class ImpactMatch(object):
             'impact_term': self.impact_term,
             'impact_type': self.impact_type,
             'impact_term_type': self.impact_term_type,
-            'condition_match': [match.json for match in self.condition_matches]
+            'condition_match': [match.json for match in self.condition_matches],
+            'doc_id': self.doc_id,
+            'sentence_index': self.sentence_index,
+            'sentence': self.sentence
         }
 
 
