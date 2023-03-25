@@ -3,7 +3,7 @@ Reading Impact Model for analyzing reading impact in online book reviews.
 
 - [Explanation of the impact types](./docs/impact.md)
 - [Examples of impact types](./docs/examples.md)
-- [Usage](#usage)
+- [Installation and Usage](#installation-and-usage)
 
 ## The Impact of Fiction
 
@@ -162,7 +162,19 @@ Which matches the lemma _sentence_ instead of the word _sentences_, which is not
   'condition_term': 'sentence'}]
 ```
 
-<h3>Contributors</h3>
+## Citing
+
+If you use this package, please cite the following publications:
+
+- Boot, P., & Koolen, M. (2020). _Captivating, splendid or instructive? 
+Assessing the impact of reading in online book reviews._ Scientific Study 
+of Literature, 10(1), 35-63.
+- Koolen, M., Neugarten, J., & Boot, P. (2022). _‘This book makes me 
+happy and sad and I love it’. A Rule-based Model for Extracting Reading 
+Impact from English Book Reviews._ Journal of Computational Literary 
+Studies, 1(1).
+
+## Contributors
 
 The following people are or have been involved in the Impact & Fiction project:
 

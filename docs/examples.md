@@ -2,8 +2,10 @@
 
 [Back to README](https://github.com/marijnkoolen/reading-impact-model)
 
-To illustrate what we mean by affective impact, we have selected some examples and described the affective impact we think they express. Some of the sentences we present you with during the questionnaire may merely describe an aspect of the book, while others go into the reader’s affective experience of reading. We ask you to judge whether a specific sentence contains an element of affective response or not. Keep in mind that these judgements are subjective and differences of opinion are possible. These differences of opinion are important for us to distinguish between cases of very clear affective impact and more dubious impact.
-
+To illustrate what we mean by affective impact, we have selected some 
+examples and described the affective impact we think they express. 
+Some of the sentences may merely describe an aspect of the book, while 
+others go into the reader’s affective experience of reading. 
 
 #### Example Sentence 1
 

@@ -8,8 +8,8 @@ affective) impact. By “affect” we mean the same thing as “emotion” or
 
 To illustrate what we mean by (affective) impact, we have selected some
 examples and described the impact we think they express. Some sentences
-in the questionnaire may merely describe an aspect of the book, while
-others go into the reader’s affective experience of reading. 
+may merely describe an aspect of the book, while others go into the 
+reader’s affective experience of reading. 
 
 The types of impact are:
 
@@ -53,9 +53,9 @@ feelings of admiration or defamiliarization about its tone, choice
 of words, use of metaphor or the way the sentences flow.
 
 
-Example Sentence Stylistic Feeling: <span classname="sentence-text">
+Example Sentence Stylistic Feeling: 
 *"This is one of, if not the most, beautifully written books I have
-ever read."* </span>
+ever read."* 
 
 
 This sentence indicates stylistic feeling, because the reviewer
@@ -68,10 +68,10 @@ of laughter, smiling or amusement; the effect of any type of humor
 in the text.
 
 
-Example Sentence Humor: <span classname="sentence-text"> *"A
+Example Sentence Humor: *"A
 light-hearted novel that will make you laugh out loud with its
 irrepressible humour, awkward situations and characters you just
-can't stop loving."* </span>
+can't stop loving."* 
 
 
 This sentence indicates humor as well as narrative feeling because
@@ -84,8 +84,8 @@ characters.
 a plot development, part of the storyworld or a stylistic feature.
 
 
-Example Sentence Surprise: <span classname="sentence-text"> *"There is a
-great unexpected twist at the end."* </span>
+Example Sentence Surprise:  *"There is a
+great unexpected twist at the end."* 
 
 
 This sentence indicates both surprise (*“unexpected twist”*) and a
@@ -99,8 +99,8 @@ awful in themselves without having a negative feeling of the storyline
 itself.
 
 
-Example Sentence Negative Feeling: <span classname="sentence-text">
-*"What I didn't enjoy was the epistolary form the book took."* </span>
+Example Sentence Negative Feeling: 
+*"What I didn't enjoy was the epistolary form the book took."* 
 
 
 This sentence indicates negative feeling because the reviewer *"didn't
@@ -111,16 +111,16 @@ reader reflect on something from the book, such as a theme or topic, or
 on something from their own world.
 
 
-Example Sentence Reflection: <span classname="sentence-text"> *"This
-book made me think about things I’ve never considered."* </span>
+Example Sentence Reflection:  *"This
+book made me think about things I’ve never considered."* 
 
 
 This sentence indicates reflection because the reviewer’s view of some
 part of the book or the world has changed.
 
-No Impact Example Sentence: <span classname="sentence-text"> "The book
+No Impact Example Sentence: "The book
 begins with the introduction of Juliet, an author looking for her next
-subject to write about." </span>
+subject to write about." 
 
 
 This sentence contains a description of the plot without saying anything
