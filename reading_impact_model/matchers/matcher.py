@@ -139,6 +139,7 @@ class ImpactMatcher:
 
     def _set_dict_sentence(self, sentence: Dict[str, any], sentence_index: int, doc_id: str) -> None:
         self.sentence_string = sentence['text']
+        self.sentence_index = sentence_index
         self.sentence_id = (sentence_index, doc_id) if sentence_index and doc_id else None
         for ti, token in enumerate(sentence['tokens']):
             token = Token(word=token.word, index=ti, lemma=token.lemma, pos=token.pos if 'pos' in token else None)
@@ -147,6 +148,7 @@ class ImpactMatcher:
 
     def _set_string_sentence(self, sentence: str, sentence_index: int, doc_id: str) -> None:
         self.sentence_string = sentence
+        self.sentence_index = sentence_index
         self.sentence_id = (sentence_index, doc_id) if sentence_index and doc_id else None
         words = re.split(r'\W+', sentence)
         for wi, word in enumerate(words):
@@ -177,6 +179,9 @@ class ImpactMatcher:
     def _iter_text_sentences(self, text: str, doc_id: str = None):
         for si, sent in enumerate(sent_tokenize(text)):
             self._set_sentence(sent, sentence_index=si, doc_id=doc_id)
+            if self.debug:
+                print('_iter_text_sentence - si:', si)
+                print('_iter_text_sentence - self.sentence_index:', self.sentence_index)
             yield si
 
     def analyse_text(self, text: str, doc_id: str = None,
@@ -270,14 +275,17 @@ class ImpactMatcher:
 
     def _match_rules(self):
         """Match sentence against all impact rules of the impact model."""
+        if self.debug:
+            print('_match_rules - sentence_index:', self.sentence_index)
         return [match for impact_rule in self.candidate_rules for match in self.match_rule(impact_rule)]
 
-    def match_rule(self, impact_rule: ImpactRule, sentence=None) -> List[ImpactMatch]:
+    def match_rule(self, impact_rule: ImpactRule, sentence=None, sentence_index: int = None,
+                   doc_id: str = None) -> List[ImpactMatch]:
         """Match sentence against a specific impact rule."""
         if sentence:
             if self.debug:
                 print('setting sentence for single rule match')
-            self._set_sentence(sentence)
+            self._set_sentence(sentence, sentence_index=sentence_index, doc_id=doc_id)
         if impact_rule.impact_term.type == "phrase":
             return self.match_impact_phrase(impact_rule)
         if impact_rule.impact_term.type == "regex":

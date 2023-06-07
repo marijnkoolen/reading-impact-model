@@ -81,3 +81,20 @@ class TestMatcherSentenceSetting(TestCase):
         print(self.matcher.sentence_vocab_terms)
         self.assertEqual(True, 'written' in self.matcher.sentence_vocab_terms)
         self.assertEqual(True, 'stylistic*' in self.matcher.sentence_vocab_terms)
+
+
+class TestMatcherAnalyseText(TestCase):
+
+    def setUp(self) -> None:
+        self.matcher = matcher.ImpactMatcher(lang='en')
+
+    def test_matcher_returns_matches(self):
+        sentence = 'The writing is beautiful'
+        matches = self.matcher.find_impact_matches(sentence)
+        self.assertEqual(2, len(matches))
+
+    def test_matcher_analyse_test_sets_sentence_index(self):
+        sentence = 'The writing is beautiful'
+        matches = self.matcher.analyse_text(sentence)
+        for match in matches:
+            self.assertEqual(True, match['sentence_index'] is not None)
