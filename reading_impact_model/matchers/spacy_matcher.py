@@ -18,10 +18,12 @@ class SpacyMatcher(matcher.ImpactMatcher):
     def _iter_text_sentences(self, text: str, doc_id: str = None):
         doc = self.parser(text)
         for si, sent in enumerate(doc.sents):
-            self._set_sentence(si, sent, doc_id)
+            self._set_sentence(sent, si, doc_id)
             yield si
 
-    def _set_sentence(self, sentence_index: int, sentence: Union[str, SpacySentence], doc_id: str) -> None:
+    def _set_sentence(self, sentence: Union[str, SpacySentence],
+                      sentence_index: int = None,
+                      doc_id: str = None) -> None:
         self._reset_sentence()
         if isinstance(sentence, str):
             sentence = self.parser(sentence)

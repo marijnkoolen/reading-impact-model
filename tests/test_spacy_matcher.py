@@ -24,7 +24,8 @@ class TestMatcher(TestCase):
         sentence = 'The writing is beautiful.'
         matches = self.matcher.find_impact_matches(sentence)
         print(matches)
-        impact = self.matcher.analyse_text(sentence)
-        print(impact['scores'])
-        self.assertEqual(True, 'positive' in impact['scores'])
-        self.assertEqual(1, impact['scores']['positive'])
+        impact_matches = self.matcher.analyse_text(sentence)
+        for match in impact_matches:
+            print(match)
+            self.assertEqual(True, 'positive' in match)
+            self.assertEqual(1, match['positive'])

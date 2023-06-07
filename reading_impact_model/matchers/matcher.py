@@ -137,17 +137,17 @@ class ImpactMatcher:
             for vocab_term in vocab_terms:
                 self.sentence_vocab_terms[vocab_term].add(token)
 
-    def _set_dict_sentence(self, sentence_index: int, sentence: Dict[str, any], doc_id: str) -> None:
+    def _set_dict_sentence(self, sentence: Dict[str, any], sentence_index: int, doc_id: str) -> None:
         self.sentence_string = sentence['text']
-        self.sentence_id = (sentence_index, doc_id)
+        self.sentence_id = (sentence_index, doc_id) if sentence_index and doc_id else None
         for ti, token in enumerate(sentence['tokens']):
             token = Token(word=token.word, index=ti, lemma=token.lemma, pos=token.pos if 'pos' in token else None)
             self._add_sentence_token(token)
             self.add_candidate_rules(token.word, token.lemma)
 
-    def _set_string_sentence(self, sentence_index: int, sentence: str, doc_id: str) -> None:
+    def _set_string_sentence(self, sentence: str, sentence_index: int, doc_id: str) -> None:
         self.sentence_string = sentence
-        self.sentence_id = (sentence_index, doc_id)
+        self.sentence_id = (sentence_index, doc_id) if sentence_index and doc_id else None
         words = re.split(r'\W+', sentence)
         for wi, word in enumerate(words):
             token = Token(word, wi, lemma=word)
@@ -163,20 +163,20 @@ class ImpactMatcher:
         self.candidate_rules = defaultdict(int)
         self.sent_id = None
 
-    def _set_sentence(self, sentence_index: int, sentence: str, doc_id: str) -> None:
+    def _set_sentence(self, sentence: str, sentence_index: int = None, doc_id: str = None) -> None:
         self._reset_sentence()
         self.doc_id = doc_id
         if isinstance(sentence, dict) and 'text' in sentence and 'tokens' in sentence:
-            self._set_dict_sentence(sentence_index, sentence, doc_id)
+            self._set_dict_sentence(sentence, sentence_index=sentence_index, doc_id=doc_id)
         elif isinstance(sentence, str):
-            self._set_string_sentence(sentence_index, sentence, doc_id)
+            self._set_string_sentence(sentence, sentence_index=sentence_index, doc_id=doc_id)
         else:
             raise TypeError(
                 "sentence must be either a string, an Sentence object from Alpino, Spacy or Stanza.")
 
     def _iter_text_sentences(self, text: str, doc_id: str = None):
         for si, sent in enumerate(sent_tokenize(text)):
-            self._set_sentence(si, sent, doc_id)
+            self._set_sentence(sent, sentence_index=si, doc_id=doc_id)
             yield si
 
     def analyse_text(self, text: str, doc_id: str = None,
