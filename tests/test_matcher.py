@@ -1,6 +1,7 @@
 from unittest import TestCase
 from reading_impact_model.matchers import matcher
 from reading_impact_model import impact_model
+from reading_impact_model.impact_model import CONDITION_MATCH_FIELDS
 
 
 class TestMatcher(TestCase):
@@ -93,8 +94,15 @@ class TestMatcherAnalyseText(TestCase):
         matches = self.matcher.find_impact_matches(sentence)
         self.assertEqual(2, len(matches))
 
-    def test_matcher_analyse_test_sets_sentence_index(self):
+    def test_matcher_analyse_text_sets_sentence_index(self):
         sentence = 'The writing is beautiful'
         matches = self.matcher.analyse_text(sentence)
         for match in matches:
             self.assertEqual(True, match['sentence_index'] is not None)
+
+    def test_matcher_analyse_text_matches_include_condition_fields(self):
+        sentence = 'The writing is beautiful'
+        matches = self.matcher.analyse_text(sentence)
+        for match in matches:
+            for field in CONDITION_MATCH_FIELDS:
+                self.assertEqual(True, field in match)

@@ -412,7 +412,7 @@ class ImpactMatcher:
         else:
             return False
 
-    def init_impact_scores(self, match: ImpactMatch) -> Dict[str, int]:
+    def init_impact_scores(self, match: ImpactMatch) -> Dict[str, any]:
         impact = {
             "doc_id": match.doc_id,
             "sentence_index": match.sentence_index,
@@ -441,9 +441,11 @@ class ImpactMatcher:
             for field in IMPACT_MATCH_FIELDS:
                 impact[field] = match[field]
             for cond_field in CONDITION_MATCH_FIELDS:
+                display_field = cond_field if cond_field.startswith('cond') else f'condition_{cond_field}'
                 if 'condition_match' in match and len(match['condition_match']) > 0:
-                    display_field = cond_field if cond_field.startswith('cond') else f'condition_{cond_field}'
                     impact[display_field] = match['condition_match'][0][cond_field]
+                else:
+                    impact[display_field] = None
             if match['impact_type'] == 'Neutral':
                 continue
             impact_type = map_review_impact(match)
